@@ -1,7 +1,7 @@
 "use client";
 
 import { SpotWithWind } from "@/lib/spots";
-import { C, kiteVerdict } from "@/lib/theme";
+import { C, kiteVerdict, formatSwell } from "@/lib/theme";
 
 const MONO = "'JetBrains Mono', monospace";
 
@@ -39,8 +39,8 @@ export default function SessionHero({ spot, loading }: { spot?: SpotWithWind; lo
   const avg  = w?.avg ?? null;
   const gust = w?.gust ?? null;
   const isGo = kiteVerdict(avg) === "GO";
-  const pinTR = spot.type === "buoy" && w?.waveHeight != null
-    ? `${w.waveHeight.toFixed(1)} m swell`
+  const pinTR = w?.waveHeight != null
+    ? `${formatSwell(w.waveHeight, w.wavePeriod ?? null)} swell`
     : gust != null ? `gust ${Math.round(gust)} kt` : "—";
 
   return (

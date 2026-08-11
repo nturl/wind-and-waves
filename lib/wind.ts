@@ -128,8 +128,14 @@ export async function fetchOpenMeteoBatch(spots: Spot[]): Promise<(WindData | nu
   const prPromise: Promise<(WindData | null)[]> = pr.length
     ? fetchBestMatchBatch(pr.map((i) => spots[i]))
     : Promise.resolve([]);
+  // Surf conditions for the PR kite spots — independent upstream (Marine API),
+  // so it runs alongside the wind fetch rather than blocking it.
+  const prMarinePromise: Promise<(MarineReading | null)[]> = pr.length
+    ? fetchMarineBatch(pr.map((i) => spots[i]))
+    : Promise.resolve([]);
 
-  const [mainlandResult, prResult] = await Promise.allSettled([mainlandPromise, prPromise]);
+  const [mainlandResult, prResult, prMarineResult] =
+    await Promise.allSettled([mainlandPromise, prPromise, prMarinePromise]);
 
   if (mainlandResult.status === "fulfilled") {
     mainland.forEach((i, k) => { out[i] = mainlandResult.value[k]; });
@@ -137,11 +143,114 @@ export async function fetchOpenMeteoBatch(spots: Spot[]): Promise<(WindData | nu
     console.error("Mainland Open-Meteo batch failed entirely:", (mainlandResult.reason as Error).message);
   }
   if (prResult.status === "fulfilled") {
-    pr.forEach((i, k) => { out[i] = prResult.value[k]; });
+    const marine = prMarineResult.status === "fulfilled" ? prMarineResult.value : [];
+    if (prMarineResult.status === "rejected") {
+      console.error("PR marine batch failed entirely:", (prMarineResult.reason as Error).message);
+    }
+    pr.forEach((i, k) => {
+      const wind = prResult.value[k];
+      const m = marine[k];
+      if (wind && m) {
+        wind.waveHeight    = m.waveHeight;
+        wind.wavePeriod    = m.wavePeriod;
+        wind.waveDirection = m.waveDirection;
+      }
+      out[i] = wind;
+    });
   } else {
     console.error("PR Open-Meteo batch failed entirely:", (prResult.reason as Error).message);
   }
 
+  return out;
+}
+
+// ── Open-Meteo Marine (surf: wave height/period/direction) ──────────────
+// PR kite spots have no live buoy coverage, so surf conditions come from the
+// Marine API's model instead. Same batching approach as the wind calls above
+// — one comma-joined multi-point request, not N serial ones. Thresholds match
+// surf-wind-watch/watch.py: period >= 7s reads as groundswell, 4-6s as wind slop.
+interface MarineReading {
+  waveHeight:    number | null;
+  wavePeriod:    number | null;
+  waveDirection: number | null;
+}
+
+const MARINE_PARAMS = {
+  hourly:   "wave_height,wave_period,wave_direction",
+  timezone: "America/New_York",
+  forecast_days: 2,
+};
+
+function nearestHourIndex(times: string[]): number {
+  const now = Date.now();
+  let best = 0, bestDiff = Infinity;
+  times.forEach((t, i) => {
+    const diff = Math.abs(new Date(t).getTime() - now);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  });
+  return best;
+}
+
+function marineReadingAt(item: Record<string, unknown> | undefined): MarineReading | null {
+  const h = item?.hourly as Record<string, (number | null)[]> | undefined;
+  const times = h?.time as unknown as string[] | undefined;
+  if (!times?.length) return null;
+  const i = nearestHourIndex(times);
+  const height = h?.wave_height?.[i] ?? null;
+  if (height == null) return null; // land pixel in the marine grid — nothing to read
+  const period = h?.wave_period?.[i] ?? null;
+  return {
+    waveHeight:    parseFloat(height.toFixed(1)),
+    wavePeriod:    period != null ? parseFloat(period.toFixed(1)) : null,
+    waveDirection: h?.wave_direction?.[i] ?? null,
+  };
+}
+
+async function fetchMarineOne(lat: number, lon: number): Promise<MarineReading | null> {
+  const res = await axios
+    .get("https://marine-api.open-meteo.com/v1/marine", {
+      params: { latitude: lat, longitude: lon, ...MARINE_PARAMS },
+      timeout: 10000,
+    })
+    .catch(() => null);
+  return res ? marineReadingAt(res.data) : null;
+}
+
+// A handful of small offshore offsets, tried one at a time, only for spots the
+// batch call missed — some PR kite spots sit close enough to shore that the
+// marine model's ~5 km grid cell lands on land instead of water.
+const MARINE_NUDGES: [number, number][] = [
+  [0, 0.05], [0, -0.05], [0.05, 0], [-0.05, 0],
+  [0, 0.1],  [0, -0.1],  [0.1, 0],  [-0.1, 0],
+];
+
+async function fetchMarineBatch(spots: Spot[]): Promise<(MarineReading | null)[]> {
+  if (!spots.length) return [];
+  const res = await axios
+    .get("https://marine-api.open-meteo.com/v1/marine", {
+      params: {
+        latitude:  spots.map((s) => s.lat).join(","),
+        longitude: spots.map((s) => s.lon).join(","),
+        ...MARINE_PARAMS,
+      },
+      timeout: 15000,
+    })
+    .catch((err) => {
+      console.error("Open-Meteo marine batch error:", (err as Error).message);
+      return null;
+    });
+
+  const items = res ? asItems(res.data) : spots.map(() => undefined);
+  const out = spots.map((_, i) => marineReadingAt(items[i]));
+
+  const misses = out.map((r, i) => (r ? -1 : i)).filter((i) => i >= 0);
+  for (const i of misses) {
+    const spot = spots[i];
+    for (const [dLat, dLon] of MARINE_NUDGES) {
+      const reading = await fetchMarineOne(spot.lat + dLat, spot.lon + dLon);
+      if (reading) { out[i] = reading; break; }
+    }
+  }
   return out;
 }
 

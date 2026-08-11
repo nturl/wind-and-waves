@@ -7,7 +7,7 @@ import WindGauge, { getWindColor, getWindLabel } from "./WindGauge";
 import WindArrow from "./WindArrow";
 import HourlyForecast from "./HourlyForecast";
 import DailyForecast from "./DailyForecast";
-import { C, REGION_COLORS } from "@/lib/theme";
+import { C, REGION_COLORS, swellQuality, formatSwell } from "@/lib/theme";
 
 interface Props {
   spot:         SpotWithWind;
@@ -147,7 +147,10 @@ export default function SpotCard({ spot, selected, onClick, verdict, userProfile
             )}
             {wind?.waveHeight != null && (
               <div style={{ fontSize: 10, color: "#5f9ea0", marginTop: 3, fontWeight: 600 }}>
-                ◑ {wind.waveHeight.toFixed(1)}m swell
+                ◑ {formatSwell(wind.waveHeight, wind.wavePeriod ?? null)} swell
+                {swellQuality(wind.wavePeriod ?? null) && (
+                  <span style={{ color: C.mute, fontWeight: 400 }}> · {swellQuality(wind.wavePeriod ?? null)}</span>
+                )}
               </div>
             )}
           </div>

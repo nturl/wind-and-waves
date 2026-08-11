@@ -31,3 +31,18 @@ export function kiteVerdict(avg: number | null): Verdict {
   if (avg > 30 && avg <= 35)  return "MARGINAL";
   return "NO";
 }
+
+// Swell quality from period alone, matching surf-wind-watch/watch.py's
+// thresholds: >= 7s reads as real groundswell; 4-6s is locally wind-driven slop.
+export function swellQuality(periodS: number | null): "groundswell" | "wind slop" | null {
+  if (periodS == null) return null;
+  if (periodS >= 7) return "groundswell";
+  if (periodS >= 4) return "wind slop";
+  return null;
+}
+
+// "1.2m @ 9s" / "1.2m" when period isn't available.
+export function formatSwell(waveHeightM: number | null, periodS: number | null): string {
+  const height = waveHeightM != null ? `${waveHeightM.toFixed(1)}m` : "—";
+  return periodS != null ? `${height} @ ${Math.round(periodS)}s` : height;
+}
