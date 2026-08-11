@@ -52,7 +52,7 @@ export async function analyzeConditions(spots: SpotWithWind[]): Promise<SpotVerd
     direction: s.wind?.directionText,
   }));
 
-  const prompt = `You are an expert kitesurfing coach analyzing wind across Noel's kite spots in North Carolina, New York, New Jersey, and Puerto Rico. The mainland spots are US East Coast beach and bay spots where hot summer afternoons often fire a thermal sea breeze — onshore wind that coarse global forecast models routinely under-call; the Puerto Rico spots ride steady easterly trade winds.
+  const prompt = `You are an expert kitesurfing coach analyzing wind across Noel's kite and surf spots in North Carolina, New York, New Jersey, and Puerto Rico. The mainland spots are US East Coast beach and bay spots where hot summer afternoons often fire a thermal sea breeze — onshore wind that coarse global forecast models routinely under-call; the Puerto Rico spots ride steady easterly trade winds.
 
 Here are the current live wind readings (all in knots):
 ${JSON.stringify(spotSummary, null, 2)}
@@ -146,7 +146,7 @@ export async function chat(
     ? `Rider profile: ${userProfile.heightCm}cm tall, ${userProfile.weightKg}kg.`
     : "";
 
-  const systemContext = `You are a knowledgeable kitesurfing assistant for Noel's kite spots across North Carolina (Topsail), New York (Brooklyn / Queens / Long Island), New Jersey (Sandy Hook), and Puerto Rico (San Juan / Aguadilla / Culebra and more).
+  const systemContext = `You are a knowledgeable kitesurfing and surf assistant for Noel's kite and surf spots across North Carolina (Topsail), New York (Brooklyn / Queens / Long Island), New Jersey (Sandy Hook), and Puerto Rico (San Juan / Aguadilla / Culebra and more).
 You have real-time wind data for all of these spots. Readings sourced from NOAA HRRR (3 km high-res) and live NDBC buoys/airports; on hot afternoons trust the live obs and watch for onshore sea breezes the global models miss.
 ${profileNote}
 
