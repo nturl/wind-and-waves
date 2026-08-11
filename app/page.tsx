@@ -69,7 +69,7 @@ function Header({
             fontFamily:    MONO,
             color:         C.ink,
             letterSpacing: "-0.02em",
-          }}>WAVES AND WIND</div>
+          }}>WIND AND WAVES</div>
           <div style={{ fontSize: 8, color: C.mute, letterSpacing: "0.16em", marginTop: -1 }}>
             NC · NY · NJ · PR
           </div>
