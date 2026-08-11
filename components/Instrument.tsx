@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { SpotWithWind, ForecastHour } from "@/lib/spots";
 import { getWindColor } from "./WindGauge";
-import { C, REGION_COLORS, kiteVerdict, Verdict } from "@/lib/theme";
+import { C, REGION_COLORS, kiteVerdict, Verdict, formatSwell, swellQuality } from "@/lib/theme";
 
 const MONO = "'JetBrains Mono', monospace";
 const LAMPS: Verdict[] = ["GO", "MARGINAL", "NO"];
@@ -93,6 +93,12 @@ export default function Instrument({ spot, onClose }: { spot: SpotWithWind; onCl
             {w?.direction != null ? ` · ${Math.round(w.direction)}°` : ""}
             {gust != null ? ` · gust ${Math.round(gust)}` : ""}
           </div>
+          {w?.waveHeight != null && (
+            <div className="tnum" style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.08em", color: C.mute, marginTop: 6 }}>
+              {formatSwell(w.waveHeight, w.wavePeriod ?? null)} swell
+              {swellQuality(w.wavePeriod ?? null) && ` · ${swellQuality(w.wavePeriod ?? null)}`}
+            </div>
+          )}
           {w?.modelGap != null && w.modelGap >= 5 && (
             <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.04em", color: C.amber, marginTop: 8 }}>
               ▲ sea breeze · globals under-calling ~{Math.round(w.modelGap)} kt
