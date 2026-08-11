@@ -22,8 +22,8 @@ export interface WindData {
   source:        "noaa" | "ndbc" | "hrrr" | "open-meteo";
   isGustOnly?:   boolean;
   waveHeight?:   number | null;
-  wavePeriod?:   number | null; // seconds — Open-Meteo Marine API, PR kite spots only
-  waveDirection?: number | null; // degrees — Open-Meteo Marine API, PR kite spots only
+  wavePeriod?:   number | null; // seconds — Open-Meteo Marine API for kite spots, NDBC DPD for buoys
+  waveDirection?: number | null; // degrees — Open-Meteo Marine API (kite spots only; NDBC MWD not parsed)
   // Live-vs-model gap: for modeled (HRRR) kite spots we also fetch the coarse
   // global model (ECMWF ~25 km — what Windy shows by default) so the UI can
   // surface how much wind the global model is under-calling. This is the whole

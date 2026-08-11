@@ -51,12 +51,13 @@ export async function fetchNDBC(stationId: string): Promise<WindData | null> {
   const lines = (res.data as string).split("\n").filter((l) => l && !l.startsWith("#"));
   if (!lines.length) return null;
   const parts = lines[0].trim().split(/\s+/);
-  // cols: YY MM DD hh mm WDIR WSPD GST WVHT ...
+  // cols: YY MM DD hh mm WDIR WSPD GST WVHT DPD APD MWD ...
   const parse = (v: string) => (v === "MM" || v == null) ? null : parseFloat(v);
   const wspd = parse(parts[6]);
   const gst  = parse(parts[7]);
   const wdir = parse(parts[5]);
   const wvht = parse(parts[8]);
+  const dpd  = parse(parts[9]); // dominant wave period — sibling column of WVHT
   const [yr, mo, dy, hr, mn] = parts;
   return {
     avg:           wspd != null ? parseFloat((wspd * MS_TO_KTS).toFixed(1)) : null,
@@ -64,6 +65,7 @@ export async function fetchNDBC(stationId: string): Promise<WindData | null> {
     direction:     wdir,
     directionText: degToCompass(wdir),
     waveHeight:    wvht,
+    wavePeriod:    dpd,
     timestamp:     `${yr}-${mo}-${dy}T${hr}:${mn}:00`,
     source:        "ndbc",
     isGustOnly:    false,
@@ -128,14 +130,17 @@ export async function fetchOpenMeteoBatch(spots: Spot[]): Promise<(WindData | nu
   const prPromise: Promise<(WindData | null)[]> = pr.length
     ? fetchBestMatchBatch(pr.map((i) => spots[i]))
     : Promise.resolve([]);
-  // Surf conditions for the PR kite spots — independent upstream (Marine API),
-  // so it runs alongside the wind fetch rather than blocking it.
-  const prMarinePromise: Promise<(MarineReading | null)[]> = pr.length
-    ? fetchMarineBatch(pr.map((i) => spots[i]))
+  // Surf conditions for every kite spot (mainland + PR) — independent upstream
+  // (Marine API), so it runs alongside both wind fetches rather than blocking
+  // them. One batched call covers all spots in `spots` (this function only
+  // ever receives kite spots — buoys/airports get their wave/wind data from
+  // NDBC/NOAA elsewhere).
+  const marinePromise: Promise<(MarineReading | null)[]> = spots.length
+    ? fetchMarineBatch(spots)
     : Promise.resolve([]);
 
-  const [mainlandResult, prResult, prMarineResult] =
-    await Promise.allSettled([mainlandPromise, prPromise, prMarinePromise]);
+  const [mainlandResult, prResult, marineResult] =
+    await Promise.allSettled([mainlandPromise, prPromise, marinePromise]);
 
   if (mainlandResult.status === "fulfilled") {
     mainland.forEach((i, k) => { out[i] = mainlandResult.value[k]; });
@@ -143,32 +148,36 @@ export async function fetchOpenMeteoBatch(spots: Spot[]): Promise<(WindData | nu
     console.error("Mainland Open-Meteo batch failed entirely:", (mainlandResult.reason as Error).message);
   }
   if (prResult.status === "fulfilled") {
-    const marine = prMarineResult.status === "fulfilled" ? prMarineResult.value : [];
-    if (prMarineResult.status === "rejected") {
-      console.error("PR marine batch failed entirely:", (prMarineResult.reason as Error).message);
-    }
-    pr.forEach((i, k) => {
-      const wind = prResult.value[k];
-      const m = marine[k];
+    pr.forEach((i, k) => { out[i] = prResult.value[k]; });
+  } else {
+    console.error("PR Open-Meteo batch failed entirely:", (prResult.reason as Error).message);
+  }
+
+  if (marineResult.status === "fulfilled") {
+    const marine = marineResult.value;
+    spots.forEach((_, i) => {
+      const wind = out[i];
+      const m = marine[i];
       if (wind && m) {
         wind.waveHeight    = m.waveHeight;
         wind.wavePeriod    = m.wavePeriod;
         wind.waveDirection = m.waveDirection;
       }
-      out[i] = wind;
     });
   } else {
-    console.error("PR Open-Meteo batch failed entirely:", (prResult.reason as Error).message);
+    console.error("Marine batch failed entirely:", (marineResult.reason as Error).message);
   }
 
   return out;
 }
 
 // ── Open-Meteo Marine (surf: wave height/period/direction) ──────────────
-// PR kite spots have no live buoy coverage, so surf conditions come from the
-// Marine API's model instead. Same batching approach as the wind calls above
-// — one comma-joined multi-point request, not N serial ones. Thresholds match
-// surf-wind-watch/watch.py: period >= 7s reads as groundswell, 4-6s as wind slop.
+// Kite spots have no live buoy coverage, so surf conditions come from the
+// Marine API's model instead (buoy-type spots get waveHeight straight from
+// NDBC WVHT — see fetchNDBC — and skip this path entirely). Same batching
+// approach as the wind calls above — one comma-joined multi-point request,
+// not N serial ones. Thresholds match surf-wind-watch/watch.py: period >= 7s
+// reads as groundswell, 4-6s as wind slop.
 interface MarineReading {
   waveHeight:    number | null;
   wavePeriod:    number | null;
@@ -217,8 +226,9 @@ async function fetchMarineOne(lat: number, lon: number): Promise<MarineReading |
 }
 
 // A handful of small offshore offsets, tried one at a time, only for spots the
-// batch call missed — some PR kite spots sit close enough to shore that the
-// marine model's ~5 km grid cell lands on land instead of water.
+// batch call missed — some kite spots sit close enough to shore that the
+// marine model's ~5 km grid cell lands on land instead of water. Mainland
+// coastal points (bays, sounds) tend to need this more than PR's beaches did.
 const MARINE_NUDGES: [number, number][] = [
   [0, 0.05], [0, -0.05], [0.05, 0], [-0.05, 0],
   [0, 0.1],  [0, -0.1],  [0.1, 0],  [-0.1, 0],
