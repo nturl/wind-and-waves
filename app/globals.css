@@ -97,6 +97,11 @@ body {
   font-family: "Inter", sans-serif !important;
 }
 
+/* Esri Dark Gray tiles are lighter than the old CARTO dark_all; pull them down to match the UI */
+.leaflet-tile-pane {
+  filter: brightness(0.62) saturate(0.85);
+}
+
 .leaflet-control-attribution {
   background: rgba(20,22,26,0.7) !important;
   color:      rgba(255,255,255,0.25) !important;

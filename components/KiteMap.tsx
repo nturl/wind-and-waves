@@ -65,9 +65,17 @@ export default function KiteMap({ spots, selectedId, onSpotSelect, region }: Pro
         fadeAnimation: false, // render tiles at full opacity immediately; the fade left tiles stuck faint when the container settled/re-fit
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap © CARTO",
+      // CARTO's keyless basemap now serves "API KEY REQUIRED" watermark tiles;
+      // Esri Dark Gray Canvas is free without a key (base + labels are separate layers, max native zoom 16)
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "© Esri © OpenStreetMap contributors",
         maxZoom: 19,
+        maxNativeZoom: 16,
+      }).addTo(map);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        maxNativeZoom: 16,
+        pane: "shadowPane", // above base tiles, below markers
       }).addTo(map);
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
