@@ -8,6 +8,7 @@ import KiteProfile, { UserProfile } from "@/components/KiteProfile";
 import Instrument from "@/components/Instrument";
 import SessionHero from "@/components/SessionHero";
 import Almanac from "@/components/Almanac";
+import { InstallSheet } from "@/components/InstallSheet";
 import { getWindColor } from "@/components/WindGauge";
 import { SpotWithWind } from "@/lib/spots";
 import { SpotVerdict, RegionalSummary } from "@/lib/gemini";
@@ -28,6 +29,7 @@ const MONO = "'JetBrains Mono', monospace";
 function Header({
   lastUpdated, loading, stale, onRefresh,
   onOpenProfile, userProfile, aiLoading,
+  onOpenInstall, standalone,
 }: {
   lastUpdated?: string;
   loading: boolean;
@@ -36,6 +38,8 @@ function Header({
   onOpenProfile: () => void;
   userProfile?: UserProfile;
   aiLoading: boolean;
+  onOpenInstall: () => void;
+  standalone: boolean;
 }) {
   const statusColor = loading ? C.mute : stale ? "#ff4d4d" : C.amber;
   const statusLabel = loading ? "UPDATING" : stale ? "STALE" : "LIVE";
@@ -96,6 +100,22 @@ function Header({
       {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {lastUpdated && <span style={{ fontSize: 10, color: C.mute, fontFamily: MONO }} className="tnum hide-mobile">as of {lastUpdated}</span>}
+        {!standalone && (
+          <button className="app-btn pressable" onClick={onOpenInstall} style={{
+            background:   "rgba(255,176,0,0.08)",
+            border:       "1px solid rgba(255,176,0,0.28)",
+            borderRadius: 8,
+            padding:      "5px 12px",
+            color:        C.amber,
+            fontSize:     10,
+            fontWeight:   600,
+            cursor:       "pointer",
+            fontFamily:   MONO,
+            letterSpacing: "0.04em",
+          }}>
+            Get the app
+          </button>
+        )}
         <button className="app-btn" onClick={onOpenProfile} style={{
           background:   "rgba(255,255,255,0.04)",
           border:       `1px solid ${userProfile ? "rgba(255,176,0,0.28)" : C.line}`,
@@ -357,6 +377,17 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
 
+  // "Get the app" install sheet
+  const [installOpen, setInstallOpen] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+
+  useEffect(() => {
+    setStandalone(
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+        (navigator as Navigator & { standalone?: boolean }).standalone === true,
+    );
+  }, []);
+
   // Persist profile in localStorage
   useEffect(() => {
     const saved = localStorage.getItem("kite-profile");
@@ -461,6 +492,8 @@ export default function App() {
         onOpenProfile={() => setProfileOpen(true)}
         userProfile={userProfile}
         aiLoading={aiLoading}
+        onOpenInstall={() => setInstallOpen(true)}
+        standalone={standalone}
       />
 
       <QuickBar spots={spots} />
@@ -570,6 +603,9 @@ export default function App() {
           onClose={() => setProfileOpen(false)}
         />
       )}
+
+      {/* ── Install sheet ── */}
+      <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
   );
 }

@@ -62,6 +62,23 @@ body {
   to   { opacity: 1; }
 }
 
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-sheet-up {
+  animation: sheetUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Tactile press for buttons and chips. */
+.pressable { transition: transform 0.15s ease; }
+.pressable:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-up { animation: none; }
+  .pressable, .pressable:active { transition: none; transform: none; }
+}
+
 /* ── Live wind ticker (QuickBar) — a calm, seamless left-crawl of every live
    reading. Track holds two copies; translating -50% wraps one copy-width for a
    seam-free loop. Pauses on hover to read a spot; falls back to manual scroll
