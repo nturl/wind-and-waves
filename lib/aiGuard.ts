@@ -50,3 +50,44 @@ export function rateLimited(ip: string, now: number = Date.now()): boolean {
   if (hits.size > 5000) hits.clear(); // bound memory on a long-lived instance
   return false;
 }
+
+// Client numbers are interpolated into prompts as text, so anything that is
+// not a finite number becomes null (a 1 MB "heightCm" string would pass a
+// truthiness check).
+export function num(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+const clip = (v: unknown): string => (typeof v === "string" ? v.slice(0, LIMITS.spotNameChars) : "");
+
+// Spots come from the browser and their string fields land in the Gemini
+// prompts, so 80 spots with megabyte names would bypass every other cap.
+// Keep only the fields lib/gemini.ts reads, strings clipped, numbers coerced.
+export function trimSpots(spots: unknown) {
+  if (!Array.isArray(spots)) return [];
+  return spots.map((s) => {
+    const o = (s ?? {}) as Record<string, unknown>;
+    const w = o.wind && typeof o.wind === "object" ? (o.wind as Record<string, unknown>) : null;
+    return {
+      id: clip(o.id),
+      name: clip(o.name),
+      region: clip(o.region),
+      type: clip(o.type),
+      wind: w ? { avg: num(w.avg), gust: num(w.gust), directionText: clip(w.directionText) || null } : null,
+    };
+  });
+}
+
+// Keeps the last chatMessages turns. Gemini's own replies come back as
+// "model" messages and can run past messageChars, so those are clipped
+// instead of making checkChatBody reject the user's next turn.
+export function clipChat(messages: unknown): unknown {
+  if (!Array.isArray(messages)) return messages;
+  return messages.slice(-LIMITS.chatMessages).map((m: Msg) =>
+    m?.role === "model" && typeof m.content === "string"
+      ? { ...m, content: m.content.slice(0, LIMITS.messageChars) }
+      : m,
+  );
+}

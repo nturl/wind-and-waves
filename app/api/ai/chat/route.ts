@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chat, ChatMessage } from "@/lib/gemini";
 import { SpotWithWind } from "@/lib/spots";
-import { LIMITS, checkChatBody, clientIp, rateLimited } from "@/lib/aiGuard";
+import { checkChatBody, clientIp, clipChat, num, rateLimited, trimSpots } from "@/lib/aiGuard";
 
 // Cheap availability probe for the chat panel — reports key presence without
 // spending a Gemini generation (the panel used to POST a throwaway "ping").
@@ -24,12 +24,16 @@ export async function POST(req: Request) {
       userProfile?: { heightCm: number; weightKg: number };
     };
 
-    const { spots, userProfile } = body;
-    const messages = Array.isArray(body.messages) ? body.messages.slice(-LIMITS.chatMessages) : body.messages;
-    const invalid = checkChatBody(messages, spots);
+    const messages = clipChat(body.messages);
+    const invalid = checkChatBody(messages, body.spots);
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
-    const reply = await chat(messages, spots, userProfile);
+    const heightCm = num(body.userProfile?.heightCm);
+    const weightKg = num(body.userProfile?.weightKg);
+    const userProfile = heightCm && weightKg ? { heightCm, weightKg } : undefined;
+    const spots = trimSpots(body.spots) as unknown as SpotWithWind[];
+
+    const reply = await chat(messages as ChatMessage[], spots, userProfile);
     return NextResponse.json({ reply });
   } catch (err) {
     console.error("Gemini chat error:", err);

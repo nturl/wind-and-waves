@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recommendKiteSize } from "@/lib/gemini";
-import { LIMITS, clientIp, rateLimited } from "@/lib/aiGuard";
+import { LIMITS, clientIp, num, rateLimited } from "@/lib/aiGuard";
 
 export async function POST(req: Request) {
   if (!process.env.GEMINI_API_KEY) {
@@ -11,13 +11,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { heightCm, weightKg, windAvg, windGust, spotName } = await req.json() as {
-      heightCm: number;
-      weightKg: number;
-      windAvg:  number;
-      windGust: number | null;
-      spotName: string;
-    };
+    const body = await req.json() as Record<string, unknown>;
+    const heightCm = num(body.heightCm);
+    const weightKg = num(body.weightKg);
+    const windAvg  = num(body.windAvg);
+    const windGust = num(body.windGust);
+    const spotName = body.spotName;
 
     if (!heightCm || !weightKg || windAvg == null) {
       return NextResponse.json({ error: "heightCm, weightKg, and windAvg are required" }, { status: 400 });
