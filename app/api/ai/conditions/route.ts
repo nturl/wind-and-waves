@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeConditions, getRegionalSummaries } from "@/lib/gemini";
 import { SpotWithWind } from "@/lib/spots";
+import { LIMITS, clientIp, rateLimited } from "@/lib/aiGuard";
 
 // Cache Gemini results for 20 min — no need to call on every page load
 let cache: { verdicts: unknown; summaries: unknown; ts: number } | null = null;
@@ -14,9 +15,15 @@ export async function POST(req: Request) {
   if (cache && Date.now() - cache.ts < TTL) {
     return NextResponse.json({ verdicts: cache.verdicts, summaries: cache.summaries, cached: true });
   }
+  if (rateLimited(clientIp(req.headers))) {
+    return NextResponse.json({ error: "Too many requests, try again later" }, { status: 429 });
+  }
 
   try {
     const spots = (await req.json()) as SpotWithWind[];
+    if (!Array.isArray(spots) || spots.length > LIMITS.spots) {
+      return NextResponse.json({ error: "too many spots" }, { status: 400 });
+    }
     const [verdicts, summaries] = await Promise.all([
       analyzeConditions(spots),
       getRegionalSummaries(spots),
