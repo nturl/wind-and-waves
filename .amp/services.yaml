@@ -1,0 +1,8 @@
+# Dev services for Amp orbs. Start them with: amp orb services ensure
+services:
+  web:
+    command: npm run dev -- --hostname 0.0.0.0 --port "$PORT"
+    portal:
+      url: /
+      title: Wind and Waves (dev)
+      description: Dev build on live NOAA and Open-Meteo data. AI features stay off unless GEMINI_API_KEY is set in the project's Secrets & Env Vars.

@@ -17,3 +17,6 @@
 .DS_Store
 *.pem
 /coverage
+
+# amp: generated portal state
+.amp/portals/
